@@ -1,65 +1,60 @@
 from flask import Flask, request, jsonify
+import mysql.connector
 
 app = Flask(__name__)
 
-# Sample data structures to simulate database
-users = []
-products = [
-    {"id": 1, "name": "Product A", "price": 10.99},
-    {"id": 2, "name": "Product B", "price": 20.49},
-    {"id": 3, "name": "Product C", "price": 15.99},
-]
-orders = []
+# Database connection configuration
+db_config = {
+    "host": "localhost",
+    "user": "root",
+    "password": "NED/0191/16-17",
+    "database": "OMS"
+}
 
 # Endpoint for user registration
 @app.route('/registeruser', methods=['POST'])
 def register_user():
-    data = request.get_json()
-    users.append(data)
-    return jsonify({"message": "User registered successfully"})
+    try:
+        data = request.get_json()
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor()
+
+        # Insert user data into the 'users' table
+        insert_query = "INSERT INTO users (username, email, password) VALUES (%s, %s, %s)"
+        cursor.execute(insert_query, (data['username'], data['email'], data['password']))
+        connection.commit()
+
+        return jsonify({"message": "User registered successfully"})
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return jsonify({"error": "Database error"}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
 
 # Endpoint to get all products
 @app.route('/getallproducts', methods=['GET'])
 def get_all_products():
-    return jsonify(products)
+    try:
+        connection = mysql.connector.connect(**db_config)
+        cursor = connection.cursor(dictionary=True)
 
-# Endpoint to place an order
-@app.route('/order', methods=['POST'])
-def place_order():
-    data = request.get_json()
-    orders.append(data)
-    return jsonify({"message": "Order placed successfully"})
+        # Query the 'products' table to get all products
+        query = "SELECT * FROM products"
+        cursor.execute(query)
+        products = cursor.fetchall()
 
-# Endpoint to retrieve all orders
-@app.route('/allorders', methods=['GET'])
-def get_all_orders():
-    return jsonify(orders)
+        return jsonify(products)
+    except mysql.connector.Error as err:
+        print(f"Error: {err}")
+        return jsonify({"error": "Database error"}), 500
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
 
-# Endpoint to add a product
-@app.route('/addproduct', methods=['POST'])
-def add_product():
-    data = request.get_json()
-    products.append(data)
-    return jsonify({"message": "Product added successfully"})
-
-# Endpoint to update a product
-@app.route('/updateproduct/<int:product_id>', methods=['PUT'])
-def update_product(product_id):
-    data = request.get_json()
-    if product_id < len(products):
-        products[product_id] = data
-        return jsonify({"message": "Product updated successfully"})
-    else:
-        return jsonify({"error": "Product not found"})
-
-# Endpoint to delete a product
-@app.route('/deleteproduct/<int:product_id>', methods=['DELETE'])
-def delete_product(product_id):
-    if product_id < len(products):
-        deleted_product = products.pop(product_id)
-        return jsonify({"message": "Product deleted successfully", "deleted_product": deleted_product})
-    else:
-        return jsonify({"error": "Product not found"})
+# Add other endpoints for order management (order, allorders, addproduct, updateproduct, deleteproduct)
 
 if __name__ == '__main__':
     app.run(debug=True)
